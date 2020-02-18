@@ -1,0 +1,11 @@
+{
+    "IntervalOffTime": 0.1, 
+    "MainTimer": 2, 
+    "IntervalOnTime": 0.2, 
+    "EFieldAmp": 0.26, 
+    "EFieldLobeDuration": 10, 
+    "useIntervalTimerCB": false, 
+    "useTimerCB": true, 
+    "PulseSpacing": 20, 
+    "preBias": 26
+}
