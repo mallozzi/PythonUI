@@ -11,7 +11,8 @@ def calcDutyCycleInt(EField):
     # dutyCycleInt is the duty cycle integer that will be applied to achieve desired electric field.
 
     # Use regression fit from data to calculate duty cycle integer from desired electric field
-    dutyCycleInt = int(round(HW.DUTY_CYCLE_INTERCEPT + EField * HW.DUTY_CYCLE_SLOPE))
+    #dutyCycleInt = int(round(HW.DUTY_CYCLE_INTERCEPT + EField * HW.DUTY_CYCLE_SLOPE))
+    dutyCycleInt = int(round(EField * HW.DUTY_CYCLE_SLOPE))
 
     return dutyCycleInt
 
@@ -20,7 +21,8 @@ def calcPreBiasInt(EField):
     # INPUTS
     # EField is the desired electric field in Volts/meter
 
-    preBiasInt = min(int(round(HW.PB_A0 + HW.PB_A1 * EField)), 255)
+    #preBiasInt = min(int(round(HW.PB_A0 + HW.PB_A1 * EField)), 255)
+    preBiasInt = 1027
     return preBiasInt
 
 def validatePulseParameters(paramsDictObj):

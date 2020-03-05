@@ -1,3 +1,4 @@
+# NOTE - THIS CODE USES PYTHON 2.7.13
 import sys
 from PyQt4 import QtCore, QtGui, uic
 
@@ -8,8 +9,8 @@ import os.path
 import math
 import json
 
-#import BeagleboneControl as BBB
-import BeagleboneSimulate as BBB
+import BeagleboneControl as BBB
+#import BeagleboneSimulate as BBB
 
 # --------------------------------
 
@@ -41,7 +42,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                                         # but be in an ON global pulsing state
 
         # initialization
-        BBB.init_GlobalEnable()
         pxmp = QtGui.QPixmap('OLogo.jpg')
         self.lbl_Logo.setPixmap(pxmp)
 
@@ -178,14 +178,13 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
             self.lbl_CountDown.setText(self.makeTimerString(self.__timerVal))
             BBB.sendPulseParametersToMCU(self.__pulseParams)
-            BBB.setGlobalEnable(HW.ENABLE)
             BBB.startPulsing()
             self.DisableControls()
             self.__mv_gif.start()
 
             # start current monitoring timer
             sampleInterval_ms = 201.313  # interval to check current in ms. Choose to be something less likely to be synchronous with pulsing.
-            self.__currentTimer.start(sampleInterval_ms)
+      #      self.__currentTimer.start(sampleInterval_ms)
 
     def startIntervalTimer(self, whichState):
         if self._globalPulsingState == ON:
@@ -217,9 +216,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         return timerValMin
 
     def stopPulsing(self):
-        BBB.setGlobalEnable(HW.DISABLE)
         BBB.stopPulsing()
-        self.__currentTimer.stop()  # current monitoring
+    #    self.__currentTimer.stop()  # current monitoring
         self.__timer.stop()
         self.__mv_gif.stop()
         self.__mv_gif.jumpToFrame(1)
@@ -242,7 +240,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         isValid, msg = MCFuncs.validatePulseParameters(self.__pulseParams)
         if not isValid:
             self.showMessageBox(msg, 'Invalid Parameter')
-
 
         return isValid, msg
 

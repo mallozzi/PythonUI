@@ -18,48 +18,54 @@ ADC.setup()
 
 def setRegisterValue(regNum, value):
     # Sends a data byte to specified register through i2c
-    i2cDev.write8(regNum, value)
+    i2cDev.write16(regNum, value)
 
 
-def init_GlobalEnable():
-    # Initializes the Global Enable digital output pin
-    GPIO.setup(HW.GLOBAL_ENABLE_PIN, GPIO.OUT)
-
-
-def setGlobalEnable(val):
-    # Enables or Disables system
-    # INPUTS
-    # val is set to 1 (ENABLE) to enable the system, 0 (DISABLE) to disable
-
-    if val == HW.DISABLE:
-        GPIO.output(HW.GLOBAL_ENABLE_PIN, GPIO.LOW)
-    if val == HW.ENABLE:
-        GPIO.output(HW.GLOBAL_ENABLE_PIN, GPIO.HIGH)
+def readRegisterValue(regNum):
+    # Reads a 16-bit unsigned integer from a register through i2c
+    val = i2cDev.readU16(regNum)
+    return val
 
 
 def sendPulseParametersToMCU(parametersDictObj):
-    # Sends pulse parameters to the MCU
+    # Sends pulse parameters to the MCU and reads them back to make sure they are accurate
     # INPUT
     # paramsDictObj is a dictionary object containing the values of the parameters. It comes from the property
     # __pulseParameters in the EFieldToroidApp class.
+    # OUTPUT
+    # transmissionVerified is True if the read numbers match the transmitted, False otherwise
 
-    setRegisterValue(HW.REG_PULSE_DURATION, parametersDictObj['EFieldLobeDuration'])
+    transmissionVerified = True
+
+    # Pulse Duration
+    pulseDurInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['EFieldLobeDuration']
+    setRegisterValue(HW.REG_PULSE_DURATION, pulseDurInt)
+    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_DURATION, pulseDurInt)
     time.sleep(.01)
 
-    setRegisterValue(HW.REG_PULSE_SPACING,parametersDictObj['PulseSpacing'])
+    # Pulse Spacing
+    pulseSpaceInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['PulseSpacing']
+    setRegisterValue(HW.REG_PULSE_SPACING, pulseSpaceInt)
+    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_SPACING, pulseSpaceInt)
     time.sleep(.01)
 
     # Pulse amplitude - must translate V/m to duty cycle integer
     val = parametersDictObj['EFieldAmp']
     dutyCycleInt = MCFuncs.calcDutyCycleInt(val)
     print 'Sending duty cycle integer of ' + str(dutyCycleInt)
-    setRegisterValue(HW.REG_PULSE_AMP, dutyCycleInt)
+    setRegisterValue(HW.REG_POS_PULSE_AMP, dutyCycleInt)
+    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_POS_PULSE_AMP, dutyCycleInt)
+    setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
+    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
     time.sleep(.01)
 
     # Pre-bias
     print 'Pre-bias value: ' + str(parametersDictObj['preBias'])
     setRegisterValue(HW.REG_PRE_BIAS, parametersDictObj['preBias'])
+    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PRE_BIAS, parametersDictObj['preBias'])
     time.sleep(.01)
+
+    return transmissionVerified
 
 
 def startPulsing():
@@ -70,17 +76,20 @@ def startPulsing():
 
 def stopPulsing():
     # First set amplitude to zero for a few ms to let things de-energize
-    setRegisterValue(HW.REG_PULSE_AMP, 0)
+    setRegisterValue(HW.REG_POS_PULSE_AMP, 0)
+    setRegisterValue(HW.REG_NEG_PULSE_AMP, 0)
     time.sleep(.05)
     setRegisterValue(HW.REG_COMMAND, HW.STOP_PULSING)
     time.sleep(.05)
     resetMCU()  # This is a kluge to avoid some sort of glitch
     time.sleep(0.5)
 
+
 def resetMCU():
     GPIO.output(HW.MCU_RESET_PIN, GPIO.HIGH)
     time.sleep(0.02)
     GPIO.output(HW.MCU_RESET_PIN, GPIO.LOW)
+
 
 def readCurrent(duration_ms):
     # Reads the current from the ADC for each channel and returns the result in Amps
@@ -108,6 +117,16 @@ def readCurrent(duration_ms):
     return current1, current2
 
 
+def verifyRegisterWrite(regNum, sentValue):
+    # verifies that a value written to MCU matches what it was supposed to be
+    # INPUTS
+    # regNum is the register number to check
+    # sentValue is the value that was sent that should match what gets read
+    # OUTPUT
+    # isGood is True if the sent value matches the read value, False otherwise
+    readVal = i2cDev.readU16(regNum)
+    isGood = readVal == sentValue
+    return isGood
 
 
 
