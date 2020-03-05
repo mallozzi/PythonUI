@@ -16,14 +16,6 @@ def calcDutyCycleInt(EField):
 
     return dutyCycleInt
 
-def calcPreBiasInt(EField):
-    # Calculates the pre-bias integer as a function of electric field for use with auto-prebiasing.
-    # INPUTS
-    # EField is the desired electric field in Volts/meter
-
-    #preBiasInt = min(int(round(HW.PB_A0 + HW.PB_A1 * EField)), 255)
-    preBiasInt = 1027
-    return preBiasInt
 
 def validatePulseParameters(paramsDictObj):
     # Validates the pulse parameters in the user interface with respect to limitations

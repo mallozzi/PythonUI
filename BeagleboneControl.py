@@ -19,6 +19,9 @@ ADC.setup()
 def setRegisterValue(regNum, value):
     # Sends a data byte to specified register through i2c
     i2cDev.write16(regNum, value)
+    mcuValue = readRegisterValue(regNum)
+    valueVerified = (mcuValue == value)
+    return valueVerified
 
 
 def readRegisterValue(regNum):
@@ -39,30 +42,30 @@ def sendPulseParametersToMCU(parametersDictObj):
 
     # Pulse Duration
     pulseDurInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['EFieldLobeDuration']
-    setRegisterValue(HW.REG_PULSE_DURATION, pulseDurInt)
-    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_DURATION, pulseDurInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_PULSE_DURATION, pulseDurInt)
+   # transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_DURATION, pulseDurInt)
     time.sleep(.01)
 
     # Pulse Spacing
     pulseSpaceInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['PulseSpacing']
-    setRegisterValue(HW.REG_PULSE_SPACING, pulseSpaceInt)
-    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_SPACING, pulseSpaceInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_PULSE_SPACING, pulseSpaceInt)
+    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_SPACING, pulseSpaceInt)
     time.sleep(.01)
 
     # Pulse amplitude - must translate V/m to duty cycle integer
     val = parametersDictObj['EFieldAmp']
     dutyCycleInt = MCFuncs.calcDutyCycleInt(val)
     print 'Sending duty cycle integer of ' + str(dutyCycleInt)
-    setRegisterValue(HW.REG_POS_PULSE_AMP, dutyCycleInt)
-    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_POS_PULSE_AMP, dutyCycleInt)
-    setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
-    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_AMP, dutyCycleInt)
+    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_POS_PULSE_AMP, dutyCycleInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
+    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
     time.sleep(.01)
 
-    # Pre-bias
-    print 'Pre-bias value: ' + str(parametersDictObj['preBias'])
-    setRegisterValue(HW.REG_PRE_BIAS, parametersDictObj['preBias'])
-    transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PRE_BIAS, parametersDictObj['preBias'])
+    # DC-bias
+    print 'DC bias value: ' + str(parametersDictObj['dcBias'])
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS, parametersDictObj['dcBias'])
+    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_DC_BIAS, parametersDictObj['dcBias'])
     time.sleep(.01)
 
     return transmissionVerified
@@ -81,7 +84,7 @@ def stopPulsing():
     time.sleep(.05)
     setRegisterValue(HW.REG_COMMAND, HW.STOP_PULSING)
     time.sleep(.05)
-    resetMCU()  # This is a kluge to avoid some sort of glitch
+    #resetMCU()  # This is a kluge to avoid some sort of glitch
     time.sleep(0.5)
 
 
@@ -100,8 +103,8 @@ def readCurrent(duration_ms):
 
     duration = float(duration_ms)/1000
     done = False
-    max_adc1 = 0.0;
-    max_adc2 = 0.0;
+    max_adc1 = 0.0
+    max_adc2 = 0.0
     startTime = time.time()
     while not done:
         adc1 = ADC.read(HW.ADC_CHAN1_PIN)

@@ -30,16 +30,17 @@ TIMER1_CYC_PER_MS = 250  # 128 MHz osc freq, Timer1 prescaler of 256, 2 osc cycl
 # **** registerHandler.c *****
 
 # I2C Register Definitions
-REG_COMMAND = 1  # register for issuing a command
-REG_POS_PULSE_AMP = 9  # pulse amplitude register for positive lobe
-REG_NEG_PULSE_AMP = 10  # pulse amplitude for negative lobe
-REG_PULSE_DURATION = 19  # pulse duration register
-REG_PULSE_SPACING = 29  # inter-pulse spacing (end of last to beginning of next)
-REG_PRE_BIAS = 39  # pre-bias pwm duty cycle value
+REG_COMMAND = 1             # register for issuing a command
+REG_POS_PULSE_AMP = 9       # pulse amplitude register for positive lobe
+REG_NEG_PULSE_AMP = 10      # pulse amplitude for negative lobe
+REG_PULSE_DURATION = 19     # pulse duration register
+REG_PULSE_SPACING = 29      # inter-pulse spacing (end of last to beginning of next)
+REG_DC_BIAS = 39            # DC bias pwm duty cycle value
+REG_ZERO_OUTPUT = 37        # pwm integer that leads to zero output
 
 # I2C Data definitions
-START_PULSING = 1  # begin pulsing electric field
-STOP_PULSING = 2   # stop pulsing electric field
+START_PULSING = 1           # begin pulsing electric field
+STOP_PULSING = 2            # stop pulsing electric field
 
 # ******** END I2C COMMUNICATIONS ********************************************************
 

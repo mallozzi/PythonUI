@@ -10,8 +10,9 @@
 
 def setRegisterValue(regNum, value):
     # Sends a data byte to specified register through i2c
-   # i2cDev.write8(regNum, value)
-   dummy = 1
+    # i2cDev.write8(regNum, value)
+    dummy = True
+    return dummy
 
 
 def init_GlobalEnable():
@@ -20,21 +21,11 @@ def init_GlobalEnable():
 
     dummy = 1
 
-def setGlobalEnable(val):
-    # Enables or Disables system
-    #INPUTS
-    #val is set to 1 (ENABLE) to enable the system, 0 (DISABLE) to disable
-
-    # if val == HW.DISABLE:
-    #     GPIO.output(HW.GLOBAL_ENABLE_PIN, GPIO.LOW)
-    # if val == HW.ENABLE:
-    #     GPIO.output(HW.GLOBAL_ENABLE_PIN, GPIO.HIGH)
-
-    dummy = 1
 
 
 def sendPulseParametersToMCU(parametersDictObj):
-    dummy = 1
+    verifiedTransmission = True
+    return verifiedTransmission
 
 
 def startPulsing():

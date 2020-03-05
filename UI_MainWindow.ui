@@ -108,7 +108,7 @@
      <property name="geometry">
       <rect>
        <x>100</x>
-       <y>170</y>
+       <y>180</y>
        <width>101</width>
        <height>31</height>
       </rect>
@@ -215,6 +215,52 @@
      </property>
      <property name="text">
       <string>20</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>80</x>
+       <y>140</y>
+       <width>101</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Yu Gothic UI</family>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>DC Bias</string>
+     </property>
+     <property name="wordWrap">
+      <bool>false</bool>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="txEd_dcBias">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>147</y>
+       <width>51</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color:rgb(228, 224, 235)</string>
+     </property>
+     <property name="text">
+      <string>0</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -392,52 +438,6 @@
     <property name="flat">
      <bool>true</bool>
     </property>
-    <widget class="QLabel" name="label_6">
-     <property name="geometry">
-      <rect>
-       <x>80</x>
-       <y>40</y>
-       <width>71</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="font">
-      <font>
-       <family>Yu Gothic UI</family>
-       <pointsize>12</pointsize>
-      </font>
-     </property>
-     <property name="text">
-      <string>Pre-bias</string>
-     </property>
-     <property name="wordWrap">
-      <bool>false</bool>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="txEd_preBias">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>47</y>
-       <width>51</width>
-       <height>20</height>
-      </rect>
-     </property>
-     <property name="font">
-      <font>
-       <pointsize>11</pointsize>
-      </font>
-     </property>
-     <property name="styleSheet">
-      <string notr="true">background-color:rgb(228, 224, 235)</string>
-     </property>
-     <property name="text">
-      <string>26</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
     <widget class="QPushButton" name="pB_resetMCU">
      <property name="geometry">
       <rect>
@@ -500,12 +500,12 @@
       <string>Advanced</string>
      </property>
     </widget>
-    <widget class="QCheckBox" name="cB_AutoPreBias">
+    <widget class="QLineEdit" name="txEd_zeroAdjust">
      <property name="geometry">
       <rect>
-       <x>160</x>
-       <y>48</y>
-       <width>171</width>
+       <x>10</x>
+       <y>37</y>
+       <width>51</width>
        <height>20</height>
       </rect>
      </property>
@@ -514,11 +514,36 @@
        <pointsize>11</pointsize>
       </font>
      </property>
-     <property name="text">
-      <string>Use Auto Pre-Bias</string>
+     <property name="styleSheet">
+      <string notr="true">background-color:rgb(228, 224, 235)</string>
      </property>
-     <property name="checked">
-      <bool>true</bool>
+     <property name="text">
+      <string>1027</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_7">
+     <property name="geometry">
+      <rect>
+       <x>80</x>
+       <y>30</y>
+       <width>101</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Yu Gothic UI</family>
+       <pointsize>12</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Zero Adjust</string>
+     </property>
+     <property name="wordWrap">
+      <bool>false</bool>
      </property>
     </widget>
    </widget>
@@ -806,7 +831,7 @@ color:white</string>
      <x>0</x>
      <y>0</y>
      <width>1191</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

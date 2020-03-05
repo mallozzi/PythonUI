@@ -36,8 +36,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.setupUi(self)
 
         # Properties
-        self.__pulseParams = {'EFieldAmp': 0.05, 'PulseSpacing': 20, 'EFieldLobeDuration': 10, 'preBias': 26}
-        self._nonPulseParameters = {'IntervalOnTime': .3, 'IntervalOffTime': .2, 'MainTimer': 14, 'useTimerCB': True, 'useIntervalTimerCB': False}
+        self.__pulseParams = {'EFieldAmp': 0.05, 'PulseSpacing': 20, 'EFieldLobeDuration': 10, 'dcBias': 26}
+        self._nonPulseParameters = {'IntervalOnTime': .3, 'IntervalOffTime': .2, 'MainTimer': 14, 'useTimerCB': True, 'useIntervalTimerCB': False, 'zeroAdjust': 1031}
         self._globalPulsingState = OFF  # either ON or OFF, depending on whether we are in pulsing mode. Note that we may be in an 'off' pulsing interval state,
                                         # but be in an ON global pulsing state
 
@@ -93,6 +93,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.pB_readCurrent.clicked.connect(self.readCurrent)
         self.lnEd_onTime.editingFinished.connect(self.intervalTimerOnMinTextEdited)
         self.lnEd_offTime.editingFinished.connect(self.intervalTimerOffMinTextEdited)
+        self.txEd_dcBias.editingFinished.connect(self.dcBiasTextEdited)
+        self.txEd_zeroAdjust.editingFinished.connect(self.zeroAdjustTextEdited)
 
         # Load parameters from file
         self.loadStoredParameters()
@@ -103,58 +105,38 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 # *************  CALLBACKS  *************************
 
     def EFieldAmpTextEdited(self):
-        try:
-            val = float(str(self.txEd_EFieldAmp.text()))
-            roundedVal = round(val, 2)
-            newText = str(roundedVal)
-            self.txEd_EFieldAmp.setText(newText)
-        except ValueError:
-            self.txEd_EFieldAmp.clear()
+        self._scrubNumericalInput(self.txEd_EFieldAmp, 2)
 
     def pulseDurationTextEdited(self):
-        try:
-            val = float(str(self.txEd_pulseDuration.text()))
-            roundedVal = int(round(val, 0))
-            newText = str(roundedVal)
-            self.txEd_pulseDuration.setText(newText)
-        except ValueError:
-            self.txEd_pulseDuration.clear()
+        self._scrubNumericalInput(self.txEd_pulseDuration, 0)
 
     def pulseSpacingTextEdited(self):
-        try:
-            val = float(str(self.txEd_pulseSpacing.text()))
-            roundedVal = int(round(val, 0))
-            newText = str(roundedVal)
-            self.txEd_pulseSpacing.setText(newText)
-        except ValueError:
-            self.txEd_pulseSpacing.clear()
+        self._scrubNumericalInput(self.txEd_pulseSpacing, 0)
 
     def timerValTextEdited(self):
-        try:
-            val = float(str(self.txEd_timerMin.text()))
-            roundedVal = int(round(val, 0))
-            newText = str(roundedVal)
-            self.txEd_timerMin.setText(newText)
-        except ValueError:
-            self.txEd_timerMin.clear()
+        self._scrubNumericalInput(self.txEd_timerMin, 0)
 
     def intervalTimerOnMinTextEdited(self):
-        try:
-            val = float(str(self.lnEd_onTime.text()))
-            roundedVal = round(val, 1)
-            newText = str(roundedVal)
-            self.lnEd_onTime.setText(newText)
-        except ValueError:
-            self.lnEd_onTime.clear()
+        self._scrubNumericalInput(self.lnEd_onTime, 1)
 
     def intervalTimerOffMinTextEdited(self):
-        try:
-            val = float(str(self.lnEd_offTime.text()))
-            roundedVal = round(val, 1)
-            newText = str(roundedVal)
-            self.lnEd_offTime.setText(newText)
-        except ValueError:
-            self.lnEd_offTime.clear()
+        self._scrubNumericalInput(self.lnEd_offTime, 1)
+
+    def dcBiasTextEdited(self):
+        val, valstring, valid = self._scrubNumericalInput(self.txEd_dcBias, 0)
+        if valid and val < 0:
+            self.txEd_dcBias.setText(str(self.__pulseParams['dcBias']))
+            self.showMessageBox('DC Bias must be greater than or equal to zero', 'User Input Error')
+
+    def zeroAdjustTextEdited(self):
+        value, strng, inputValid = self._scrubNumericalInput(self.txEd_zeroAdjust, 0)
+        # this parameter must be sent to microcontroller immediately because it is a reference point for pulse parameters
+        if inputValid:      # make sure input is valid first
+            transmissionVerified = BBB.setRegisterValue(HW.REG_ZERO_OUTPUT, value)
+            if not transmissionVerified:
+                self.showMessageBox('Error Transmitting zero adjust value of i2c bus', 'ERROR')
+        else:
+            self.txEd_zeroAdjust.setText(str(self._nonPulseParameters['zeroAdjust']))
 
     def startPulsing(self):
         isValid, msg = self.verifyPulseParams()  # loads all parameters from UI too
@@ -177,7 +159,10 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 self.startIntervalTimer(ON)
 
             self.lbl_CountDown.setText(self.makeTimerString(self.__timerVal))
-            BBB.sendPulseParametersToMCU(self.__pulseParams)
+            transmissionVerified = BBB.sendPulseParametersToMCU(self.__pulseParams)
+            print('Transmission verified: %s' % transmissionVerified)
+            if not transmissionVerified:
+                self.showMessageBox('Error Transmitting Pulse Parameters over i2c bus', 'ERROR')
             BBB.startPulsing()
             self.DisableControls()
             self.__mv_gif.start()
@@ -230,13 +215,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
     def verifyPulseParams(self):
         self.loadPulseParamsFromUI()
-        # set pre-bias if auto-prebias is checked
-        if self.cB_AutoPreBias.isChecked():
-            EField = self.__pulseParams['EFieldAmp']
-            preBiasInt = MCFuncs.calcPreBiasInt(EField)
-            self.txEd_preBias.setText(str(preBiasInt))
-
-        self.loadPulseParamsFromUI()
         isValid, msg = MCFuncs.validatePulseParameters(self.__pulseParams)
         if not isValid:
             self.showMessageBox(msg, 'Invalid Parameter')
@@ -250,13 +228,14 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         dictObj['EFieldAmp'] = self.__pulseParams['EFieldAmp']
         dictObj['EFieldLobeDuration'] = self.__pulseParams['EFieldLobeDuration']
         dictObj['PulseSpacing'] = self.__pulseParams['PulseSpacing']
-        dictObj['preBias'] = self.__pulseParams['preBias']
+        dictObj['dcBias'] = self.__pulseParams['dcBias']
 
         dictObj['IntervalOnTime'] = self._nonPulseParameters['IntervalOnTime']
         dictObj['IntervalOffTime'] = self._nonPulseParameters['IntervalOffTime']
         dictObj['MainTimer'] = self._nonPulseParameters['MainTimer']
         dictObj['useTimerCB'] = self._nonPulseParameters['useTimerCB']
         dictObj['useIntervalTimerCB'] = self._nonPulseParameters['useIntervalTimerCB']
+        dictObj['zeroAdjust'] = self._nonPulseParameters['zeroAdjust']
 
         with open('StoredParameters.txt', 'w+') as fp:
             json.dump(dictObj, fp, indent=4)
@@ -271,12 +250,13 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 self.__pulseParams['EFieldAmp'] = dictObj['EFieldAmp']
                 self.__pulseParams['EFieldLobeDuration'] = dictObj['EFieldLobeDuration']
                 self.__pulseParams['PulseSpacing'] = dictObj['PulseSpacing']
-                self.__pulseParams['preBias'] = dictObj['preBias']
+                self.__pulseParams['dcBias'] = dictObj['dcBias']
 
                 self.txEd_EFieldAmp.setText(str(dictObj['EFieldAmp']))
                 self.txEd_pulseDuration.setText(str(dictObj['EFieldLobeDuration']))
                 self.txEd_pulseSpacing.setText(str(dictObj['PulseSpacing']))
-                self.txEd_preBias.setText(str(dictObj['preBias']))
+                self.txEd_dcBias.setText(str(dictObj['dcBias']))
+
 
                 # non-pulse parameters
                 self._nonPulseParameters['IntervalOnTime'] = dictObj['IntervalOnTime']
@@ -284,12 +264,14 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 self._nonPulseParameters['MainTimer'] = dictObj['MainTimer']
                 self._nonPulseParameters['useTimerCB'] = dictObj['useTimerCB']
                 self._nonPulseParameters['useIntervalTimerCB'] = dictObj['useIntervalTimerCB']
+                self._nonPulseParameters['zeroAdjust'] = dictObj['zeroAdjust']
 
                 self.txEd_timerMin.setText(str(dictObj['MainTimer']))
                 self.lnEd_onTime.setText(str(dictObj['IntervalOnTime']))
                 self.lnEd_offTime.setText(str(dictObj['IntervalOffTime']))
                 self.cB_useIntervalMode.setChecked(dictObj['useIntervalTimerCB'])
                 self.cB_UseTimer.setChecked(dictObj['useTimerCB'])
+                self.txEd_zeroAdjust.setText(str(dictObj['zeroAdjust']))
 
     def timerStateChanged(self):
         if self.cB_UseTimer.isChecked():
@@ -352,13 +334,14 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.__pulseParams['EFieldAmp'] = float(str(self.txEd_EFieldAmp.text()))
         self.__pulseParams['EFieldLobeDuration'] = int(round(float(str(self.txEd_pulseDuration.text()))))
         self.__pulseParams['PulseSpacing'] = int(round(float(str(self.txEd_pulseSpacing.text()))))
-        self.__pulseParams['preBias'] = int(round(float(str(self.txEd_preBias.text()))))
+        self.__pulseParams['dcBias'] = int(round(float(str(self.txEd_dcBias.text()))))
 
         self._nonPulseParameters['IntervalOnTime'] = float(str(self.lnEd_onTime.text()))
         self._nonPulseParameters['IntervalOffTime'] = float(str(self.lnEd_offTime.text()))
         self._nonPulseParameters['MainTimer'] = int(str(self.txEd_timerMin.text()))
         self._nonPulseParameters['useTimerCB'] = self.cB_UseTimer.isChecked()
         self._nonPulseParameters['useIntervalTimerCB'] = self.cB_useIntervalMode.isChecked()
+        self._nonPulseParameters['zeroAdjust'] = int(round(float(str(self.txEd_zeroAdjust.text()))))
 
     def showMessageBox(self, msg, winTitle='Error'):
         mbx = QtGui.QMessageBox()
@@ -480,14 +463,41 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.cB_AdvancedControls.setEnabled(False)
 
     def EnableAdvancedControls(self):
-        self.txEd_preBias.setEnabled(True)
         self.pB_readCurrent.setEnabled(True)
-        self.cB_AutoPreBias.setEnabled(True)
+        self.txEd_zeroAdjust.setEnabled(True)
 
     def DisableAdvancedControls(self):
-        self.txEd_preBias.setEnabled(False)
         self.pB_readCurrent.setEnabled(False)
-        self.cB_AutoPreBias.setEnabled(False)
+        self.txEd_zeroAdjust.setEnabled(False)
+
+    def _scrubNumericalInput(self, txtInputWidget, roundLevel):
+        # Helper method for accepting numerical input from a text box. Takes input and rounds it, returning the rounded number and the associated string of the
+        # rounded number
+        # INPUTS
+        # txtInputWidget is a text input widget that is meant to accept a single number as input, and has a text() method for reading and a setText() method for
+        #   setting
+        # roundLevel an integer giving the rounding level for the result, where 0 means nearest integer, 1 means to nearest 0.1, etc...
+        # OUTPUTS
+        # roundedVal is the number that is the rounded value
+        # roundedString is the string version of the rounded value
+        # validInput is True if the input is a valid number, False otherwise
+
+        try:
+            val = float(str(txtInputWidget.text()))
+            roundedVal = round(val, roundLevel)
+            if roundLevel == 0:
+                roundedVal = int(roundedVal)
+            roundedString = str(roundedVal)
+            txtInputWidget.setText(roundedString)
+            validInput = True
+        except ValueError:
+            txtInputWidget.clear()
+            validInput = False
+            roundedString = None
+            roundedVal = None
+
+        return roundedVal, roundedString, validInput
+
 
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
