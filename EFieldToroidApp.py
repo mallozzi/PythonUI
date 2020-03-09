@@ -23,10 +23,11 @@ qtCreatorFile = "UI_MainWindow.ui"  # Enter file here.
 
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
-#registerMap = {'EFieldAmp': 1, 'EFieldDuration': 2}
+
 # Global Constants
 ON = 1
 OFF = 0
+
 
 class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
@@ -36,7 +37,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.setupUi(self)
 
         # Properties
-        self.__pulseParams = {'EFieldAmp': 0.05, 'PulseSpacing': 20, 'EFieldLobeDuration': 10, 'dcBias': 26}
+        self.__pulseParams = {'EFieldAmpPos': 0.5, 'EFieldAmpNeg': 0.5, 'PulseSpacing': 20, 'EFieldLobeDurationPos': 10, 'EFieldLobeDurationNeg': 10, 'dcBias': 1027}
         self._nonPulseParameters = {'IntervalOnTime': .3, 'IntervalOffTime': .2, 'MainTimer': 14, 'useTimerCB': True, 'useIntervalTimerCB': False, 'zeroAdjust': 1031}
         self._globalPulsingState = OFF  # either ON or OFF, depending on whether we are in pulsing mode. Note that we may be in an 'off' pulsing interval state,
                                         # but be in an ON global pulsing state
@@ -71,13 +72,11 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self._intervalTimerInitVal = 0                      # initial value of timer (not current value)
         self._intervalTimerExpired = False
 
-        # Timer for current monitoring
-        self.__currentTimer = QtCore.QTimer()
-        self.__currentTimer.timeout.connect(self.checkCurrent)
-
         # SIGNALS for callback functions
-        self.txEd_EFieldAmp.editingFinished.connect(self.EFieldAmpTextEdited)
-        self.txEd_pulseDuration.editingFinished.connect(self.pulseDurationTextEdited)
+        self.txEd_EFieldAmpPos.editingFinished.connect(self.EFieldAmpPosTextEdited)
+        self.txEd_EFieldAmpNeg.editingFinished.connect(self.EFieldAmpNegTextEdited)
+        self.txEd_pulseDurationPos.editingFinished.connect(self.pulseDurationPosTextEdited)
+        self.txEd_pulseDurationNeg.editingFinished.connect(self.pulseDurationNegTextEdited)
         self.txEd_pulseSpacing.editingFinished.connect(self.pulseSpacingTextEdited)
         self.txEd_timerMin.editingFinished.connect(self.timerValTextEdited)
         self.pB_StartPulsing.clicked.connect(self.startPulsing)
@@ -89,8 +88,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.cB_UseTimer.stateChanged.connect(self.timerStateChanged)
         self.cB_useIntervalMode.stateChanged.connect(self.intervalStateChanged)
         self.cB_AdvancedControls.stateChanged.connect(self.advancedStateChanged)
-        self.pB_resetMCU.clicked.connect(self.resetMCU)
-        self.pB_readCurrent.clicked.connect(self.readCurrent)
         self.lnEd_onTime.editingFinished.connect(self.intervalTimerOnMinTextEdited)
         self.lnEd_offTime.editingFinished.connect(self.intervalTimerOffMinTextEdited)
         self.txEd_dcBias.editingFinished.connect(self.dcBiasTextEdited)
@@ -104,11 +101,25 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
 # *************  CALLBACKS  *************************
 
-    def EFieldAmpTextEdited(self):
-        self._scrubNumericalInput(self.txEd_EFieldAmp, 2)
+    def EFieldAmpPosTextEdited(self):
+        value, valueText, valid = self._scrubNumericalInput(self.txEd_EFieldAmpPos, 2)
+        inputInRange = validateParameter(value, 0.0, HW.EFIELD_MAX_POTENTIAL)
+        if not inputInRange:
+            self.txEd_EFieldAmpPos.setText(str(self.__pulseParams['EFieldAmpPos']))
+            self.showMessageBox('Electric field must be between 0 and ' + str(HW.EFIELD_MAX_POTENTIAL) + ' V/m')
 
-    def pulseDurationTextEdited(self):
-        self._scrubNumericalInput(self.txEd_pulseDuration, 0)
+    def EFieldAmpNegTextEdited(self):
+        value, valueText, valid = self._scrubNumericalInput(self.txEd_EFieldAmpNeg, 2)
+        inputInRange = validateParameter(value, 0.0, HW.EFIELD_MAX_POTENTIAL)
+        if not inputInRange:
+            self.txEd_EFieldAmpNeg.setText(str(self.__pulseParams['EFieldAmpNeg']))
+            self.showMessageBox('Electric field must be between 0 and ' + str(HW.EFIELD_MAX_POTENTIAL) + ' V/m')
+
+    def pulseDurationPosTextEdited(self):
+        self._scrubNumericalInput(self.txEd_pulseDurationPos, 0)
+
+    def pulseDurationNegTextEdited(self):
+        self._scrubNumericalInput(self.txEd_pulseDurationNeg, 0)
 
     def pulseSpacingTextEdited(self):
         self._scrubNumericalInput(self.txEd_pulseSpacing, 0)
@@ -123,7 +134,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self._scrubNumericalInput(self.lnEd_offTime, 1)
 
     def dcBiasTextEdited(self):
-        val, valstring, valid = self._scrubNumericalInput(self.txEd_dcBias, 0)
+        val, valstring, valid = self._scrubNumericalInput(self.txEd_dcBias, 1)
         if valid and val < 0:
             self.txEd_dcBias.setText(str(self.__pulseParams['dcBias']))
             self.showMessageBox('DC Bias must be greater than or equal to zero', 'User Input Error')
@@ -160,16 +171,11 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
             self.lbl_CountDown.setText(self.makeTimerString(self.__timerVal))
             transmissionVerified = BBB.sendPulseParametersToMCU(self.__pulseParams)
-            print('Transmission verified: %s' % transmissionVerified)
             if not transmissionVerified:
                 self.showMessageBox('Error Transmitting Pulse Parameters over i2c bus', 'ERROR')
             BBB.startPulsing()
             self.DisableControls()
             self.__mv_gif.start()
-
-            # start current monitoring timer
-            sampleInterval_ms = 201.313  # interval to check current in ms. Choose to be something less likely to be synchronous with pulsing.
-      #      self.__currentTimer.start(sampleInterval_ms)
 
     def startIntervalTimer(self, whichState):
         if self._globalPulsingState == ON:
@@ -179,11 +185,13 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
             self._intervalTimerExpired = False
             self._intervalTimer.start(1000)  # update every second
             self.lbl_intervalTime.setText(self.makeTimerString(self._intervalTimerVal))
+            self.lbl_intervalState.setText('Pulsing')
 
     def stopIntervalTimer(self):
         self._intervalTimer.stop()
         self._intervalTimerPulseState = OFF
         self.lbl_intervalTime.setText(self.makeTimerString(0))
+        self.lbl_intervalState.setText('')
 
     def getIntervalTimerInitVal(self, whichState):
         # Retrieves the initial value of the interval timer, for either the on or off state, from the user interface
@@ -202,7 +210,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
     def stopPulsing(self):
         BBB.stopPulsing()
-    #    self.__currentTimer.stop()  # current monitoring
         self.__timer.stop()
         self.__mv_gif.stop()
         self.__mv_gif.jumpToFrame(1)
@@ -225,8 +232,10 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.loadPulseParamsFromUI()
         # pack parameters into a single dictionary object
         dictObj = dict()
-        dictObj['EFieldAmp'] = self.__pulseParams['EFieldAmp']
-        dictObj['EFieldLobeDuration'] = self.__pulseParams['EFieldLobeDuration']
+        dictObj['EFieldAmpPos'] = self.__pulseParams['EFieldAmpPos']
+        dictObj['EFieldAmpNeg'] = self.__pulseParams['EFieldAmpNeg']
+        dictObj['EFieldLobeDurationPos'] = self.__pulseParams['EFieldLobeDurationPos']
+        dictObj['EFieldLobeDurationNeg'] = self.__pulseParams['EFieldLobeDurationNeg']
         dictObj['PulseSpacing'] = self.__pulseParams['PulseSpacing']
         dictObj['dcBias'] = self.__pulseParams['dcBias']
 
@@ -247,13 +256,17 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 dictObj = json.load(fp)
 
                 # Unpack parameters
-                self.__pulseParams['EFieldAmp'] = dictObj['EFieldAmp']
-                self.__pulseParams['EFieldLobeDuration'] = dictObj['EFieldLobeDuration']
+                self.__pulseParams['EFieldAmpPos'] = dictObj['EFieldAmpPos']
+                self.__pulseParams['EFieldAmpNeg'] = dictObj['EFieldAmpNeg']
+                self.__pulseParams['EFieldLobeDurationPos'] = dictObj['EFieldLobeDurationPos']
+                self.__pulseParams['EFieldLobeDurationNeg'] = dictObj['EFieldLobeDurationNeg']
                 self.__pulseParams['PulseSpacing'] = dictObj['PulseSpacing']
                 self.__pulseParams['dcBias'] = dictObj['dcBias']
 
-                self.txEd_EFieldAmp.setText(str(dictObj['EFieldAmp']))
-                self.txEd_pulseDuration.setText(str(dictObj['EFieldLobeDuration']))
+                self.txEd_EFieldAmpPos.setText(str(dictObj['EFieldAmpPos']))
+                self.txEd_EFieldAmpNeg.setText(str(dictObj['EFieldAmpNeg']))
+                self.txEd_pulseDurationPos.setText(str(dictObj['EFieldLobeDurationPos']))
+                self.txEd_pulseDurationNeg.setText(str(dictObj['EFieldLobeDurationNeg']))
                 self.txEd_pulseSpacing.setText(str(dictObj['PulseSpacing']))
                 self.txEd_dcBias.setText(str(dictObj['dcBias']))
 
@@ -291,34 +304,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.lbl_onTimeMin.setEnabled(enabledState)
         self.lbl_offTimeMin.setEnabled(enabledState)
 
-    def resetMCU(self):
-        self.stopPulsing()
-        BBB.resetMCU()
-        self.showMessageBox('Microcontroller reset command sent', 'Info')
-
-    def readCurrent(self):
-        # Reads current from ADC in each channel are shows value in a message box.
-        duration_ms = 200
-        current1, current2 = BBB.readCurrent(duration_ms)
-        msg = 'Channel 1:   ' + str(round(current1,2)) + ' Amps \n' + 'Channel 2:   ' + str(round(current2,2)) + ' Amps'
-        self.showMessageBox(msg, 'Current Output')
-
-    def checkCurrent(self):
-        # Performs a quick check on the current for safety. Compares current to the limit set up in Hardware_Constants
-        # and reports whether the current level passed or not. The check is short enough that it may not pick up the
-        # maximum current in a pulse, but is meant to catch consistently high values.
-        # OUTPUT
-        # testPassed is True if the current was less than or equal to the limit, False if it was greater than the limit.
-
-        duration_ms = 50
-        current1, current2 = BBB.readCurrent(duration_ms)
-        upperLimit = HW.CURRENT_LIMIT
-        testPassed = current1 <= upperLimit and current2 <= upperLimit
-        if not testPassed:
-            self.stopPulsing()
-            msg = 'Current limit of ' + str(upperLimit) + ' Amps exceeded. Current was ' + str(round(max(current1,current2),2)) + ' Amps.'
-            self.showMessageBox(msg)
-
     def advancedStateChanged(self):
         if self.cB_AdvancedControls.isChecked():
             self.EnableAdvancedControls()
@@ -331,10 +316,12 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 # *************  NON-CALLBACK METHODS ***************
 
     def loadPulseParamsFromUI(self):
-        self.__pulseParams['EFieldAmp'] = float(str(self.txEd_EFieldAmp.text()))
-        self.__pulseParams['EFieldLobeDuration'] = int(round(float(str(self.txEd_pulseDuration.text()))))
+        self.__pulseParams['EFieldAmpPos'] = float(str(self.txEd_EFieldAmpPos.text()))
+        self.__pulseParams['EFieldAmpNeg'] = float(str(self.txEd_EFieldAmpNeg.text()))
+        self.__pulseParams['EFieldLobeDurationPos'] = int(round(float(str(self.txEd_pulseDurationPos.text()))))
+        self.__pulseParams['EFieldLobeDurationNeg'] = int(round(float(str(self.txEd_pulseDurationNeg.text()))))
         self.__pulseParams['PulseSpacing'] = int(round(float(str(self.txEd_pulseSpacing.text()))))
-        self.__pulseParams['dcBias'] = int(round(float(str(self.txEd_dcBias.text()))))
+        self.__pulseParams['dcBias'] = float(str(self.txEd_dcBias.text()))
 
         self._nonPulseParameters['IntervalOnTime'] = float(str(self.lnEd_onTime.text()))
         self._nonPulseParameters['IntervalOffTime'] = float(str(self.lnEd_offTime.text()))
@@ -430,16 +417,16 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         # Based on which pulsing state we are in, toggle state
         if self._intervalTimerPulseState == ON:
             self._intervalTimerPulseState = OFF
-            BBB.setGlobalEnable(HW.DISABLE)
             BBB.stopPulsing()
             self.startIntervalTimer(OFF)
+            self.lbl_intervalState.setText('Not Pulsing')
             self.__mv_gif.stop()
         else:
             if self.__timerVal > 0 and self._globalPulsingState == ON:
                 self._intervalTimerPulseState = ON
-                BBB.setGlobalEnable(HW.ENABLE)
                 BBB.startPulsing()
                 self.startIntervalTimer(ON)
+                self.lbl_intervalState.setText('Pulsing')
                 self.__mv_gif.start()
 
     def EnableControls(self):
@@ -447,27 +434,31 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.pB_StopPulsing.setEnabled(False)
         self.pB_ResetTimer.setEnabled(True)
         self.enableTimerControls(True)
-        self.txEd_EFieldAmp.setEnabled(True)
-        self.txEd_pulseDuration.setEnabled(True)
+        self.txEd_EFieldAmpPos.setEnabled(True)
+        self.txEd_EFieldAmpNeg.setEnabled(True)
+        self.txEd_pulseDurationPos.setEnabled(True)
+        self.txEd_pulseDurationNeg.setEnabled(True)
         self.txEd_pulseSpacing.setEnabled(True)
         self.cB_AdvancedControls.setEnabled(True)
+        self.txEd_dcBias.setEnabled(True)
 
     def DisableControls(self):
         self.pB_StopPulsing.setEnabled(True)
         self.pB_StartPulsing.setEnabled(False)
         self.pB_ResetTimer.setEnabled(False)
         self.enableTimerControls(False)
-        self.txEd_EFieldAmp.setEnabled(False)
-        self.txEd_pulseDuration.setEnabled(False)
+        self.txEd_EFieldAmpPos.setEnabled(False)
+        self.txEd_EFieldAmpNeg.setEnabled(False)
+        self.txEd_pulseDurationPos.setEnabled(False)
+        self.txEd_pulseDurationNeg.setEnabled(False)
         self.txEd_pulseSpacing.setEnabled(False)
         self.cB_AdvancedControls.setEnabled(False)
+        self.txEd_dcBias.setEnabled(False)
 
     def EnableAdvancedControls(self):
-        self.pB_readCurrent.setEnabled(True)
         self.txEd_zeroAdjust.setEnabled(True)
 
     def DisableAdvancedControls(self):
-        self.pB_readCurrent.setEnabled(False)
         self.txEd_zeroAdjust.setEnabled(False)
 
     def _scrubNumericalInput(self, txtInputWidget, roundLevel):
@@ -497,6 +488,21 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
             roundedVal = None
 
         return roundedVal, roundedString, validInput
+
+
+# Functions
+def validateParameter(parameter, minVal, maxVal, includeLowerBound=True, includeUpperBound=True):
+    # Checks whether a parameter is within a given interval
+    if includeLowerBound:
+        valid = parameter >= minVal
+    else:
+        valid = parameter > minVal
+    if includeUpperBound:
+        valid = valid and parameter <= maxVal
+    else:
+        valid = valid and parameter < maxVal
+
+    return valid
 
 
 if __name__ == "__main__":

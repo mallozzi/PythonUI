@@ -4,14 +4,12 @@ import Hardware_Constants as HW
 
 
 def calcDutyCycleInt(EField):
-    # Converts a desired Electric Field in Volts/meter to a duty cycle integer
+    # Converts a desired Electric Field in Volts/meter to a duty cycle integer for positive or lobe of pulse
     # INPUTS
-    # EField is the desired electric field in Volts/meter
+    # EField is a positive float giving the deviation of the desired electric field in Volts/meter from the dc value
     # OUTPUT
-    # dutyCycleInt is the duty cycle integer that will be applied to achieve desired electric field.
+    # dutyCycleInt is the duty cycle integer that will be added or subtracted from the dc duty cycle to achieve desired electric field.
 
-    # Use regression fit from data to calculate duty cycle integer from desired electric field
-    #dutyCycleInt = int(round(HW.DUTY_CYCLE_INTERCEPT + EField * HW.DUTY_CYCLE_SLOPE))
     dutyCycleInt = int(round(EField * HW.DUTY_CYCLE_SLOPE))
 
     return dutyCycleInt
@@ -26,31 +24,52 @@ def validatePulseParameters(paramsDictObj):
     # isValid is boolean True if the parameters are valid, False if not
     # msg is a string message describing the error
 
-        isValid = True
-        msg = ''
+    isValid = True
+    msg = ''
 
-        # Electric field amplitude
-        EFieldAmp = paramsDictObj['EFieldAmp']
-        EFieldLobeDuration = paramsDictObj['EFieldLobeDuration']
+    # Electric field amplitude of positive lobe
+    EFieldAmpPos = paramsDictObj['EFieldAmpPos'] + paramsDictObj['dcBias']
 
-        if EFieldAmp > HW.EFIELD_MAX_POTENTIAL:
-            isValid = False
-            msg = 'E-Field exceeds maximum of ' + str(HW.EFIELD_MAX_POTENTIAL) + ' V/m'
-        elif EFieldAmp*EFieldLobeDuration > HW.EFIELD_TIME_PROD_LIMIT:
-            isValid = False
-            allowableAmp = round(float(HW.EFIELD_TIME_PROD_LIMIT)/EFieldLobeDuration - 0.005, 2)  # round down to nearest one hundredth
-            msg = 'E-Field amplitude exceeds allowable value for a ' + str(EFieldLobeDuration) + ' ms pulse. ' + \
-                  'Maximum allowable amplitude for this pulse length is ' + str(allowableAmp) + ' V/m'
+    # TO DO: enforce limits for pulse durations
 
-        interPulseSpacing = paramsDictObj['PulseSpacing']
-        if interPulseSpacing > HW.PULSE_SPACING_MAX:
-            isValid = False
-            msg = 'Maximum Inter-Pulse Spacing is ' + str(HW.PULSE_SPACING_MAX) + ' ms.'
-        elif interPulseSpacing < HW.PULSE_SPACING_MIN:
-            isValid = False
-            msg = 'Minimum Inter-Pulse Spacing is ' + str(HW.PULSE_SPACING_MIN) + ' ms.'
+    if EFieldAmpPos > HW.EFIELD_MAX_POTENTIAL:
+        isValid = False
+        msg = 'Peak E-Field of ' + str(EFieldAmpPos)+ 'V/m exceeds maximum of ' + str(HW.EFIELD_MAX_POTENTIAL) + ' V/m.'
+    elif EFieldAmpPos < 0:
+        isValid = False
+        msg = 'Peak E-field must be a positive number'
 
-        return isValid, msg
+    # Electric field amplitude of negative lobe
+    EFieldAmpNeg = -paramsDictObj['EFieldAmpNeg'] + paramsDictObj['dcBias']
+    if abs(EFieldAmpNeg) > HW.EFIELD_MAX_POTENTIAL:
+        isValid = False
+        msg = 'Minimum Negative E-Field of ' + str(EFieldAmpNeg)+ 'V/m is less than ' + str(-HW.EFIELD_MAX_POTENTIAL) + ' V/m.'
+
+    # Pulse duration
+    posPulseDuration = paramsDictObj['EFieldLobeDurationPos']
+    if posPulseDuration > HW.PULSE_DURATION_MAX:
+        isValid = False
+        msg = 'Maximum pulse lobe duration is ' + str(HW.PULSE_SPACING_MAX) + ' ms'
+    elif posPulseDuration < HW.PULSE_DURATION_MIN:
+        isValid = False
+        msg = 'Minimum pulse lobe duration is ' + str(HW.PULSE_SPACING_MIN) + ' ms'
+    negPulseDuration = paramsDictObj['EFieldLobeDurationNeg']
+    if negPulseDuration > HW.PULSE_DURATION_MAX:
+        isValid = False
+        msg = 'Maximum pulse lobe duration is ' + str(HW.PULSE_SPACING_MAX) + ' ms'
+    elif negPulseDuration < HW.PULSE_DURATION_MIN:
+        isValid = False
+        msg = 'Minimum pulse lobe duration is ' + str(HW.PULSE_SPACING_MIN) + ' ms'
+
+    interPulseSpacing = paramsDictObj['PulseSpacing']
+    if interPulseSpacing > HW.PULSE_SPACING_MAX:
+        isValid = False
+        msg = 'Maximum Inter-Pulse Spacing is ' + str(HW.PULSE_SPACING_MAX) + ' ms.'
+    elif interPulseSpacing < HW.PULSE_SPACING_MIN:
+        isValid = False
+        msg = 'Minimum Inter-Pulse Spacing is ' + str(HW.PULSE_SPACING_MIN) + ' ms.'
+
+    return isValid, msg
 
 
 

@@ -1,12 +1,14 @@
 {
-    "IntervalOffTime": 0.1, 
+    "EFieldLobeDurationPos": 8, 
     "MainTimer": 15, 
-    "EFieldLobeDuration": 10, 
-    "EFieldAmp": 0.25, 
-    "zeroAdjust": 1019, 
-    "dcBias": 0, 
     "IntervalOnTime": 0.2, 
+    "IntervalOffTime": 0.1, 
+    "zeroAdjust": 1027, 
+    "dcBias": 0.0, 
+    "EFieldAmpNeg": 0.25, 
     "useIntervalTimerCB": false, 
     "useTimerCB": false, 
-    "PulseSpacing": 20
+    "EFieldLobeDurationNeg": 10, 
+    "PulseSpacing": 20, 
+    "EFieldAmpPos": 0.25
 }

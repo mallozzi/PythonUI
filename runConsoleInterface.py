@@ -34,8 +34,8 @@ while done == False:
     elif cmd == 'stop':
         cm.stopPulsing()
     elif cmd == 'help':
-        print('\nValid parameter names: EFieldAmp, PulseSpacing, EFieldLobeDuration, preBias')
-        print("example: type 'set EFieldAmp 1.09' to set the field amplitude to 1.09")
+        print('\nValid parameter names: EFieldAmpPos, PulseSpacing, EFieldLobeDurationPos, preBias')
+        print("example: type 'set EFieldAmpPos 1.09' to set the field amplitude to 1.09")
         print("To start pulsing, type 'start', to stop pulsing type 'stop'")
         print("To view current parameters, type 'params'")
         print('')

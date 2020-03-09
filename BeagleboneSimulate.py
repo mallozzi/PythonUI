@@ -15,14 +15,6 @@ def setRegisterValue(regNum, value):
     return dummy
 
 
-def init_GlobalEnable():
-    # Initializes the Global Enable digital output pin
-    # GPIO.setup(HW.GLOBAL_ENABLE_PIN, GPIO.OUT)
-
-    dummy = 1
-
-
-
 def sendPulseParametersToMCU(parametersDictObj):
     verifiedTransmission = True
     return verifiedTransmission
@@ -35,8 +27,4 @@ def startPulsing():
 def stopPulsing():
     dummy = 1
 
-def resetMCU():
-    dummy = 1
 
-def readCurrent(duration_ms):
-    return 0.123456, 0.2345678

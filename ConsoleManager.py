@@ -11,7 +11,7 @@ class ConsoleManager:
 
     def __init__(self):
         # pulse properties
-        self.__pulseParams = {'EFieldAmp': 0.05, 'PulseSpacing': 20, 'EFieldLobeDuration': 10, 'preBias': 0}
+        self.__pulseParams = {'EFieldAmpPos': 0.05, 'PulseSpacing': 20, 'EFieldLobeDurationPos': 10, 'preBias': 0}
         
     def saveParameters(self):
         f = open('StoredParameters.txt', 'w+')
@@ -42,11 +42,11 @@ class ConsoleManager:
             print('Error: invalid parameter key')
         else:
             # convert to appropriate type
-            if paramKey == 'EFieldAmp':
+            if paramKey == 'EFieldAmpPos':
                 numVal = float(value)
             elif paramKey == 'PulseSpacing':
                 numVal = int(value)
-            elif paramKey == 'EFieldLobeDuration':
+            elif paramKey == 'EFieldLobeDurationPos':
                 numVal = int(value)
             elif paramKey == 'preBias':
                 numVal = int(value)
@@ -55,8 +55,8 @@ class ConsoleManager:
             self.printParameters()
         
     def printParameters(self):       
-        print('\nElectric Field Amplitude: ' + str(self.__pulseParams['EFieldAmp']) + ' V/m')
-        print('Pulse lobe duration: ' + str(self.__pulseParams['EFieldLobeDuration']) + ' ms')
+        print('\nElectric Field Amplitude: ' + str(self.__pulseParams['EFieldAmpPos']) + ' V/m')
+        print('Pulse lobe duration: ' + str(self.__pulseParams['EFieldLobeDurationPos']) + ' ms')
         print('Spacing between pulses (end to beginning) ' + str(self.__pulseParams['PulseSpacing']) + ' ms')
         print('Pre-bias value: ' + str(self.__pulseParams['preBias']) )
         print('')

@@ -9,9 +9,6 @@ import MCU_Utility as MCFuncs
 #These lines are called upon import
 #...initialize bus
 i2cDev = i2c.Device(HW.I2C_SLAVE_ADDRESS,2) # bus 2 is the available i2c bus
-#...initialize GPIO output
-GPIO.setup(HW.MCU_RESET_PIN,GPIO.OUT)
-GPIO.output(HW.MCU_RESET_PIN,GPIO.LOW)
 #...ADC setup
 ADC.setup()
 
@@ -40,32 +37,38 @@ def sendPulseParametersToMCU(parametersDictObj):
 
     transmissionVerified = True
 
-    # Pulse Duration
-    pulseDurInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['EFieldLobeDuration']
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_PULSE_DURATION, pulseDurInt)
-   # transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_DURATION, pulseDurInt)
+    # DC-bias - this must be sent before the pulse amplitudes because they are computed relative to this in the MCU
+    EFieldDCOffset = parametersDictObj['dcBias']
+    dcOffsetDutyCycleInt = int(round(EFieldDCOffset * HW.DUTY_CYCLE_SLOPE))
+    print 'DC bias value: ' + str(dcOffsetDutyCycleInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS, dcOffsetDutyCycleInt)
+    time.sleep(.01)
+
+    # Pulse Duration for positive lobe
+    pulseDurPosInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['EFieldLobeDurationPos']
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_DURATION, pulseDurPosInt)
+    time.sleep(.01)
+
+    # Pulse Duration for negative lobe
+    pulseDurNegInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['EFieldLobeDurationNeg']
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_DURATION, pulseDurNegInt)
     time.sleep(.01)
 
     # Pulse Spacing
     pulseSpaceInt = HW.TIMER1_CYC_PER_MS * parametersDictObj['PulseSpacing']
     transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_PULSE_SPACING, pulseSpaceInt)
-    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_PULSE_SPACING, pulseSpaceInt)
     time.sleep(.01)
 
-    # Pulse amplitude - must translate V/m to duty cycle integer
-    val = parametersDictObj['EFieldAmp']
-    dutyCycleInt = MCFuncs.calcDutyCycleInt(val)
-    print 'Sending duty cycle integer of ' + str(dutyCycleInt)
+    # Pulse amplitudes - must translate V/m to duty cycle integer
+    valPos = parametersDictObj['EFieldAmpPos']
+    dutyCycleInt = MCFuncs.calcDutyCycleInt(valPos)
+    print 'EFieldAmpPos: Sending duty cycle integer of ' + str(dutyCycleInt)
     transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_AMP, dutyCycleInt)
-    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_POS_PULSE_AMP, dutyCycleInt)
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
-    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
-    time.sleep(.01)
 
-    # DC-bias
-    print 'DC bias value: ' + str(parametersDictObj['dcBias'])
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS, parametersDictObj['dcBias'])
-    #transmissionVerified = transmissionVerified and verifyRegisterWrite(HW.REG_DC_BIAS, parametersDictObj['dcBias'])
+    valNeg = parametersDictObj['EFieldAmpNeg']
+    dutyCycleInt = MCFuncs.calcDutyCycleInt(valNeg)
+    print 'EFieldAmpNeg: Sending duty cycle integer of ' + str(dutyCycleInt)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
     time.sleep(.01)
 
     return transmissionVerified
@@ -84,40 +87,7 @@ def stopPulsing():
     time.sleep(.05)
     setRegisterValue(HW.REG_COMMAND, HW.STOP_PULSING)
     time.sleep(.05)
-    #resetMCU()  # This is a kluge to avoid some sort of glitch
     time.sleep(0.5)
-
-
-def resetMCU():
-    GPIO.output(HW.MCU_RESET_PIN, GPIO.HIGH)
-    time.sleep(0.02)
-    GPIO.output(HW.MCU_RESET_PIN, GPIO.LOW)
-
-
-def readCurrent(duration_ms):
-    # Reads the current from the ADC for each channel and returns the result in Amps
-    # INPUT
-    # duration_ms is the duration to poll the current in ms
-    # OUTPUTS
-    # current1 and current2 is the current in Amps in each channel
-
-    duration = float(duration_ms)/1000
-    done = False
-    max_adc1 = 0.0
-    max_adc2 = 0.0
-    startTime = time.time()
-    while not done:
-        adc1 = ADC.read(HW.ADC_CHAN1_PIN)
-        adc2 = ADC.read(HW.ADC_CHAN2_PIN)
-        max_adc1 = max(max_adc1, adc1)
-        max_adc2 = max(max_adc2, adc2)
-        tm = time.time()-startTime
-        if tm > duration:
-            done = True
-
-    current1 = max_adc1 * HW.ADC_CURRENT_CONVERSION
-    current2 = max_adc2 * HW.ADC_CURRENT_CONVERSION
-    return current1, current2
 
 
 def verifyRegisterWrite(regNum, sentValue):
