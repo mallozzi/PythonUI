@@ -28,3 +28,12 @@ def stopPulsing():
     dummy = 1
 
 
+def checkForFaults():
+    # Checks GPIO input for indication of fault on signal. Simulator just returns a 'no fault detected' signal
+    return False
+
+
+def getErrorMessages():
+    # Retrieves fault flag byte from MCU and returns a list of error messages.
+    errorMessageList = ['simulation: no error messages']
+    return errorMessageList

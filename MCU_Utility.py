@@ -1,16 +1,29 @@
-# Utility Functions relating to micro-controller
-import math
+# Utility Functions relating to micro-controller. These are not functions that interact directly with the MCU, but rather provide support calculations for those
+# that do.
+
 import Hardware_Constants as HW
 
 
-def calcDutyCycleInt(EField):
-    # Converts a desired Electric Field in Volts/meter to a duty cycle integer for positive or lobe of pulse
+def calcDutyCycleIntInner(EField):
+    # Converts a desired Electric Field in Volts/meter to a duty cycle integer for positive or lobe of pulse for the inner ring set
     # INPUTS
     # EField is a positive float giving the deviation of the desired electric field in Volts/meter from the dc value
     # OUTPUT
     # dutyCycleInt is the duty cycle integer that will be added or subtracted from the dc duty cycle to achieve desired electric field.
 
-    dutyCycleInt = int(round(EField * HW.DUTY_CYCLE_SLOPE))
+    dutyCycleInt = int(round(EField * HW.DUTY_CYCLE_SLOPE_INNER))
+
+    return dutyCycleInt
+
+
+def calcDutyCycleIntOuter(EField):
+    # Converts a desired Electric Field in Volts/meter to a duty cycle integer for positive or lobe of pulse for the outer ring set
+    # INPUTS
+    # EField is a positive float giving the deviation of the desired electric field in Volts/meter from the dc value
+    # OUTPUT
+    # dutyCycleInt is the duty cycle integer that will be added or subtracted from the dc duty cycle to achieve desired electric field.
+
+    dutyCycleInt = int(round(EField * HW.DUTY_CYCLE_SLOPE_OUTER))
 
     return dutyCycleInt
 

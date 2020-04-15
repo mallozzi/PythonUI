@@ -18,11 +18,11 @@ import BeagleboneControl as BBB
 # output file from Qt Designer. It is the xml .ui file.
 
 qtCreatorFile = "UI_MainWindow.ui"  # Enter file here.
-
+qtAdvancedConfigDlg = "UI_AdvancedConfig.ui"
 # --------------------------------
 
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
-
+Ui_AdvancedConfigDlg, Ui_AdvancedConfigBaseClass = uic.loadUiType(qtAdvancedConfigDlg)
 
 # Global Constants
 ON = 1
@@ -35,6 +35,9 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         QtGui.QMainWindow.__init__(self)
         Ui_MainWindow.__init__(self)
         self.setupUi(self)
+
+        # Advanced Config Dialog
+        self._advancedConfigDlg = AdvancedConfigDlg()
 
         # Properties
         self.__pulseParams = {'EFieldAmpPos': 0.5, 'EFieldAmpNeg': 0.5, 'PulseSpacing': 20, 'EFieldLobeDurationPos': 10, 'EFieldLobeDurationNeg': 10, 'dcBias': 1027}
@@ -52,6 +55,11 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.__mv_gif.start()
         self.__mv_gif.stop()
         self.__mv_gif.jumpToFrame(1)
+
+        # Fault Detection timer
+        self._faultCheckTimer = QtCore.QTimer()
+        self._faultCheckTimer.timeout.connect(self.checkForFaults)
+
 
         # Timer for pulsing duration for user
         self.__timer = QtCore.QTimer()
@@ -83,21 +91,20 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.pB_StopPulsing.clicked.connect(self.stopPulsing)
         self.pB_Verify.clicked.connect(self.verifyPulseParams)
         self.pB_ResetTimer.clicked.connect(self.resetTimer)
-        self.act_Store_Parameters.triggered.connect(self.storeParameters)
-        self.act_Load_Parameters.triggered.connect(self.loadStoredParameters)
+        self.pB_advancedConfig.clicked.connect(self.advancedConfigPB)
+        self.act_Store_Default_Parameters.triggered.connect(self.storeDefaultParameters)
+        self.act_Load_Default_Parameters.triggered.connect(self.loadDefaultParameters)
+        self.act_Save_Protocol.triggered.connect(self.saveProtocol)
+        self.act_Load_Protocol.triggered.connect(self.loadProtocol)
         self.cB_UseTimer.stateChanged.connect(self.timerStateChanged)
         self.cB_useIntervalMode.stateChanged.connect(self.intervalStateChanged)
-        self.cB_AdvancedControls.stateChanged.connect(self.advancedStateChanged)
         self.lnEd_onTime.editingFinished.connect(self.intervalTimerOnMinTextEdited)
         self.lnEd_offTime.editingFinished.connect(self.intervalTimerOffMinTextEdited)
         self.txEd_dcBias.editingFinished.connect(self.dcBiasTextEdited)
         self.txEd_zeroAdjust.editingFinished.connect(self.zeroAdjustTextEdited)
 
         # Load parameters from file
-        self.loadStoredParameters()
-
-        # Disable advanced controls
-        self.DisableAdvancedControls()
+        self.loadDefaultParameters()
 
 # *************  CALLBACKS  *************************
 
@@ -175,6 +182,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 self.showMessageBox('Error Transmitting Pulse Parameters over i2c bus', 'ERROR')
             BBB.startPulsing()
             self.DisableControls()
+            self._faultCheckTimer.start(2000)       # check every two seconds
             self.__mv_gif.start()
 
     def startIntervalTimer(self, whichState):
@@ -209,14 +217,15 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         return timerValMin
 
     def stopPulsing(self):
+        self._globalPulsingState = OFF
         BBB.stopPulsing()
         self.__timer.stop()
         self.__mv_gif.stop()
         self.__mv_gif.jumpToFrame(1)
         self.pB_Verify.setFocus()
         self.EnableControls()
-        self._globalPulsingState = OFF
         self.stopIntervalTimer()
+        self._faultCheckTimer.stop()
         if self.__timerUsed and self.__timerExpired:
             self.showMessageBox('Pulsing Terminated After '+str(self.__timerInitVal)+ ' minutes','Info')
 
@@ -228,63 +237,41 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
 
         return isValid, msg
 
-    def storeParameters(self):
+    def storeDefaultParameters(self):
+        # Stores a default parameter set, which gets loaded up when the software is started.
         self.loadPulseParamsFromUI()
-        # pack parameters into a single dictionary object
-        dictObj = dict()
-        dictObj['EFieldAmpPos'] = self.__pulseParams['EFieldAmpPos']
-        dictObj['EFieldAmpNeg'] = self.__pulseParams['EFieldAmpNeg']
-        dictObj['EFieldLobeDurationPos'] = self.__pulseParams['EFieldLobeDurationPos']
-        dictObj['EFieldLobeDurationNeg'] = self.__pulseParams['EFieldLobeDurationNeg']
-        dictObj['PulseSpacing'] = self.__pulseParams['PulseSpacing']
-        dictObj['dcBias'] = self.__pulseParams['dcBias']
-
-        dictObj['IntervalOnTime'] = self._nonPulseParameters['IntervalOnTime']
-        dictObj['IntervalOffTime'] = self._nonPulseParameters['IntervalOffTime']
-        dictObj['MainTimer'] = self._nonPulseParameters['MainTimer']
-        dictObj['useTimerCB'] = self._nonPulseParameters['useTimerCB']
-        dictObj['useIntervalTimerCB'] = self._nonPulseParameters['useIntervalTimerCB']
-        dictObj['zeroAdjust'] = self._nonPulseParameters['zeroAdjust']
+        dictObj = self.makeParametersDictObj()
 
         with open('StoredParameters.txt', 'w+') as fp:
             json.dump(dictObj, fp, indent=4)
         self.showMessageBox('Parameters have been stored', 'Info')
 
-    def loadStoredParameters(self):
+    def loadDefaultParameters(self):
         if os.path.isfile('StoredParameters.txt'):
             with open('StoredParameters.txt', 'r') as fp:
                 dictObj = json.load(fp)
 
-                # Unpack parameters
-                self.__pulseParams['EFieldAmpPos'] = dictObj['EFieldAmpPos']
-                self.__pulseParams['EFieldAmpNeg'] = dictObj['EFieldAmpNeg']
-                self.__pulseParams['EFieldLobeDurationPos'] = dictObj['EFieldLobeDurationPos']
-                self.__pulseParams['EFieldLobeDurationNeg'] = dictObj['EFieldLobeDurationNeg']
-                self.__pulseParams['PulseSpacing'] = dictObj['PulseSpacing']
-                self.__pulseParams['dcBias'] = dictObj['dcBias']
+            self.unpackParametersDictObj(dictObj)
 
-                self.txEd_EFieldAmpPos.setText(str(dictObj['EFieldAmpPos']))
-                self.txEd_EFieldAmpNeg.setText(str(dictObj['EFieldAmpNeg']))
-                self.txEd_pulseDurationPos.setText(str(dictObj['EFieldLobeDurationPos']))
-                self.txEd_pulseDurationNeg.setText(str(dictObj['EFieldLobeDurationNeg']))
-                self.txEd_pulseSpacing.setText(str(dictObj['PulseSpacing']))
-                self.txEd_dcBias.setText(str(dictObj['dcBias']))
+    def saveProtocol(self):
+        fileAndPathName = str(os.path.join(os.path.curdir,'Protocols'))
+        protocolFilename = QtGui.QFileDialog.getSaveFileName(self, 'Store Protocol', fileAndPathName, '*.json')
 
+        self.loadPulseParamsFromUI()
+        dictObj = self.makeParametersDictObj()
 
-                # non-pulse parameters
-                self._nonPulseParameters['IntervalOnTime'] = dictObj['IntervalOnTime']
-                self._nonPulseParameters['IntervalOffTime'] = dictObj['IntervalOffTime']
-                self._nonPulseParameters['MainTimer'] = dictObj['MainTimer']
-                self._nonPulseParameters['useTimerCB'] = dictObj['useTimerCB']
-                self._nonPulseParameters['useIntervalTimerCB'] = dictObj['useIntervalTimerCB']
-                self._nonPulseParameters['zeroAdjust'] = dictObj['zeroAdjust']
+        if not protocolFilename.isEmpty():
+            with open(protocolFilename, 'w+') as fp:
+                json.dump(dictObj, fp, indent=4)
+            self.showMessageBox('Parameters have been stored', 'Info')
 
-                self.txEd_timerMin.setText(str(dictObj['MainTimer']))
-                self.lnEd_onTime.setText(str(dictObj['IntervalOnTime']))
-                self.lnEd_offTime.setText(str(dictObj['IntervalOffTime']))
-                self.cB_useIntervalMode.setChecked(dictObj['useIntervalTimerCB'])
-                self.cB_UseTimer.setChecked(dictObj['useTimerCB'])
-                self.txEd_zeroAdjust.setText(str(dictObj['zeroAdjust']))
+    def loadProtocol(self):
+        protocolPathname = os.path.join(os.path.curdir,'Protocols')
+        protocolFilename = QtGui.QFileDialog.getOpenFileName(self, 'Load Protocol', protocolPathname, '*.json')
+        if not protocolFilename.isEmpty():
+            with open(protocolFilename, 'r') as fp:
+                dictObj = json.load(fp)
+            self.unpackParametersDictObj(dictObj)
 
     def timerStateChanged(self):
         if self.cB_UseTimer.isChecked():
@@ -304,14 +291,23 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.lbl_onTimeMin.setEnabled(enabledState)
         self.lbl_offTimeMin.setEnabled(enabledState)
 
-    def advancedStateChanged(self):
-        if self.cB_AdvancedControls.isChecked():
-            self.EnableAdvancedControls()
-        else:
-            self.DisableAdvancedControls()
-
     def resetTimer(self):
         self.lbl_CountDown.setText(self.makeTimerString(self.__timerInitVal*60))
+
+    def checkForFaults(self):
+        if not self._advancedConfigDlg.cB_disableFaultWarnings.isChecked():
+            faultDetected = BBB.checkForFaults()
+            #faultDetected = True
+            if faultDetected:
+                errorMessages = BBB.getErrorMessages()      # list object
+                msgText = ['Error: The following fault(s) were detected: '] + errorMessages
+                msgText.append('\n Note: Fault Detection can be disabled in the Advanced Configurations dialog')
+                self.stopPulsing()
+                self.showMessageBox(msgText)
+
+    def advancedConfigPB(self):
+        self._advancedConfigDlg.show()
+        self._advancedConfigDlg.activateWindow()        # brings window back on top in case it got behind main window
 
 # *************  NON-CALLBACK METHODS ***************
 
@@ -331,9 +327,16 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self._nonPulseParameters['zeroAdjust'] = int(round(float(str(self.txEd_zeroAdjust.text()))))
 
     def showMessageBox(self, msg, winTitle='Error'):
+        # shows a single string error message, or a list of strings as a series of messages
         mbx = QtGui.QMessageBox()
         mbx.setWindowTitle(winTitle)
-        mbx.setText(msg)
+        if type(msg) is str:
+            message = msg
+        elif type(msg) is list:
+            message = ''
+            for el in msg:
+                message = message + el + '\n'
+        mbx.setText(message)
         mbx.exec_()
 
     def enableTimerControls(self, isEnabled):
@@ -359,6 +362,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         if self.__timerUsed:
             self.__timerVal = self.__timerVal-1 # reduce by one second
             if self.__timerVal <= 0:
+                timerString = self.makeTimerString(self.__timerVal)     # populate timer output before calling timer expired code
+                self.lbl_CountDown.setText(timerString)
                 self.timerExpired()
                 self.__timer.stop()
         else:
@@ -439,7 +444,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.txEd_pulseDurationPos.setEnabled(True)
         self.txEd_pulseDurationNeg.setEnabled(True)
         self.txEd_pulseSpacing.setEnabled(True)
-        self.cB_AdvancedControls.setEnabled(True)
         self.txEd_dcBias.setEnabled(True)
 
     def DisableControls(self):
@@ -452,14 +456,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.txEd_pulseDurationPos.setEnabled(False)
         self.txEd_pulseDurationNeg.setEnabled(False)
         self.txEd_pulseSpacing.setEnabled(False)
-        self.cB_AdvancedControls.setEnabled(False)
         self.txEd_dcBias.setEnabled(False)
-
-    def EnableAdvancedControls(self):
-        self.txEd_zeroAdjust.setEnabled(True)
-
-    def DisableAdvancedControls(self):
-        self.txEd_zeroAdjust.setEnabled(False)
 
     def _scrubNumericalInput(self, txtInputWidget, roundLevel):
         # Helper method for accepting numerical input from a text box. Takes input and rounds it, returning the rounded number and the associated string of the
@@ -488,6 +485,74 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
             roundedVal = None
 
         return roundedVal, roundedString, validInput
+
+    def makeParametersDictObj(self):
+        # pack current parameters into a single dictionary object. Note that these are not necessarily the parameters that are in the UI. The parameters must be
+        # loaded from the UI first to pack those.
+        dictObj = dict()
+        dictObj['EFieldAmpPos'] = self.__pulseParams['EFieldAmpPos']
+        dictObj['EFieldAmpNeg'] = self.__pulseParams['EFieldAmpNeg']
+        dictObj['EFieldLobeDurationPos'] = self.__pulseParams['EFieldLobeDurationPos']
+        dictObj['EFieldLobeDurationNeg'] = self.__pulseParams['EFieldLobeDurationNeg']
+        dictObj['PulseSpacing'] = self.__pulseParams['PulseSpacing']
+        dictObj['dcBias'] = self.__pulseParams['dcBias']
+
+        dictObj['IntervalOnTime'] = self._nonPulseParameters['IntervalOnTime']
+        dictObj['IntervalOffTime'] = self._nonPulseParameters['IntervalOffTime']
+        dictObj['MainTimer'] = self._nonPulseParameters['MainTimer']
+        dictObj['useTimerCB'] = self._nonPulseParameters['useTimerCB']
+        dictObj['useIntervalTimerCB'] = self._nonPulseParameters['useIntervalTimerCB']
+        dictObj['zeroAdjust'] = self._nonPulseParameters['zeroAdjust']
+
+        return dictObj
+
+    def unpackParametersDictObj(self, dictObj):
+        # Loads class parameters from dictionary object
+        # Unpack parameters
+        self.__pulseParams['EFieldAmpPos'] = dictObj['EFieldAmpPos']
+        self.__pulseParams['EFieldAmpNeg'] = dictObj['EFieldAmpNeg']
+        self.__pulseParams['EFieldLobeDurationPos'] = dictObj['EFieldLobeDurationPos']
+        self.__pulseParams['EFieldLobeDurationNeg'] = dictObj['EFieldLobeDurationNeg']
+        self.__pulseParams['PulseSpacing'] = dictObj['PulseSpacing']
+        self.__pulseParams['dcBias'] = dictObj['dcBias']
+
+        self.txEd_EFieldAmpPos.setText(str(dictObj['EFieldAmpPos']))
+        self.txEd_EFieldAmpNeg.setText(str(dictObj['EFieldAmpNeg']))
+        self.txEd_pulseDurationPos.setText(str(dictObj['EFieldLobeDurationPos']))
+        self.txEd_pulseDurationNeg.setText(str(dictObj['EFieldLobeDurationNeg']))
+        self.txEd_pulseSpacing.setText(str(dictObj['PulseSpacing']))
+        self.txEd_dcBias.setText(str(dictObj['dcBias']))
+
+        # non-pulse parameters
+        self._nonPulseParameters['IntervalOnTime'] = dictObj['IntervalOnTime']
+        self._nonPulseParameters['IntervalOffTime'] = dictObj['IntervalOffTime']
+        self._nonPulseParameters['MainTimer'] = dictObj['MainTimer']
+        self._nonPulseParameters['useTimerCB'] = dictObj['useTimerCB']
+        self._nonPulseParameters['useIntervalTimerCB'] = dictObj['useIntervalTimerCB']
+        self._nonPulseParameters['zeroAdjust'] = dictObj['zeroAdjust']
+
+        self.txEd_timerMin.setText(str(dictObj['MainTimer']))
+        self.lnEd_onTime.setText(str(dictObj['IntervalOnTime']))
+        self.lnEd_offTime.setText(str(dictObj['IntervalOffTime']))
+        self.cB_useIntervalMode.setChecked(dictObj['useIntervalTimerCB'])
+        self.cB_UseTimer.setChecked(dictObj['useTimerCB'])
+        self.txEd_zeroAdjust.setText(str(dictObj['zeroAdjust']))
+
+    def showMessage(self):
+        self.showMessageBox('Got Here!')
+
+
+# Advanced Config Dialog
+class AdvancedConfigDlg(Ui_AdvancedConfigBaseClass, Ui_AdvancedConfigDlg):
+    def __init__(self, parent=None):
+        Ui_AdvancedConfigBaseClass.__init__(self, parent)
+        self.setupUi(self)
+
+        self.pB_OK.clicked.connect(self.close)
+
+    @property
+    def disableWarnings(self):
+        return self.cB_disableFaultWarnings.isChecked()
 
 
 # Functions

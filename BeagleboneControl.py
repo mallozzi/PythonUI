@@ -11,6 +11,8 @@ import MCU_Utility as MCFuncs
 i2cDev = i2c.Device(HW.I2C_SLAVE_ADDRESS,2) # bus 2 is the available i2c bus
 #...ADC setup
 ADC.setup()
+#...GPIO setup
+GPIO.setup("P8_10", GPIO.IN)
 
 
 def setRegisterValue(regNum, value):
@@ -38,10 +40,18 @@ def sendPulseParametersToMCU(parametersDictObj):
     transmissionVerified = True
 
     # DC-bias - this must be sent before the pulse amplitudes because they are computed relative to this in the MCU
+    # ...inner rings
     EFieldDCOffset = parametersDictObj['dcBias']
-    dcOffsetDutyCycleInt = int(round(EFieldDCOffset * HW.DUTY_CYCLE_SLOPE))
-    print 'DC bias value: ' + str(dcOffsetDutyCycleInt)
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS, dcOffsetDutyCycleInt)
+    dcOffsetDutyCycleIntInner = int(round(EFieldDCOffset * HW.DUTY_CYCLE_SLOPE_INNER))
+    print 'DC bias value for inner rings: ' + str(dcOffsetDutyCycleIntInner)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS_INNER, dcOffsetDutyCycleIntInner)
+    time.sleep(.01)
+
+    # ...outer rings
+    EFieldDCOffset = parametersDictObj['dcBias']
+    dcOffsetDutyCycleIntOuter = int(round(EFieldDCOffset * HW.DUTY_CYCLE_SLOPE_OUTER))
+    print 'DC bias value for outer rings: ' + str(dcOffsetDutyCycleIntOuter)
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_DC_BIAS_OUTER, dcOffsetDutyCycleIntOuter)
     time.sleep(.01)
 
     # Pulse Duration for positive lobe
@@ -60,15 +70,30 @@ def sendPulseParametersToMCU(parametersDictObj):
     time.sleep(.01)
 
     # Pulse amplitudes - must translate V/m to duty cycle integer
+    # ...inner rings positive lobe
     valPos = parametersDictObj['EFieldAmpPos']
-    dutyCycleInt = MCFuncs.calcDutyCycleInt(valPos)
-    print 'EFieldAmpPos: Sending duty cycle integer of ' + str(dutyCycleInt)
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_AMP, dutyCycleInt)
+    dutyCycleIntInner = MCFuncs.calcDutyCycleIntInner(valPos)
+    print 'EFieldAmpPos: Sending duty cycle integer of ' + str(dutyCycleIntInner) + ' for inner rings positive lobe'
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_AMP_INNER, dutyCycleIntInner)
 
+    # ...outer rings positive lobe
+    valPos = parametersDictObj['EFieldAmpPos']
+    dutyCycleIntOuter = MCFuncs.calcDutyCycleIntOuter(valPos)
+    print 'EFieldAmpPos: Sending duty cycle integer of ' + str(dutyCycleIntOuter) + ' for outer rings positive lobe'
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_POS_PULSE_AMP_OUTER, dutyCycleIntOuter)
+
+    # ...inner rings negative lobe
     valNeg = parametersDictObj['EFieldAmpNeg']
-    dutyCycleInt = MCFuncs.calcDutyCycleInt(valNeg)
-    print 'EFieldAmpNeg: Sending duty cycle integer of ' + str(dutyCycleInt)
-    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP, dutyCycleInt)
+    dutyCycleIntInnerNeg = MCFuncs.calcDutyCycleIntInner(valNeg)
+    print 'EFieldAmpNeg: Sending duty cycle integer of ' + str(dutyCycleIntInnerNeg) + ' for inner rings negative lobe'
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP_INNER, dutyCycleIntInnerNeg)
+    time.sleep(.01)
+
+    # ...outer rings negative lobe
+    valNeg = parametersDictObj['EFieldAmpNeg']
+    dutyCycleIntOuterNeg = MCFuncs.calcDutyCycleIntOuter(valNeg)
+    print 'EFieldAmpNeg: Sending duty cycle integer of ' + str(dutyCycleIntOuterNeg) + ' for outer rings negative lobe'
+    transmissionVerified = transmissionVerified and setRegisterValue(HW.REG_NEG_PULSE_AMP_OUTER, dutyCycleIntOuterNeg)
     time.sleep(.01)
 
     return transmissionVerified
@@ -82,8 +107,10 @@ def startPulsing():
 
 def stopPulsing():
     # First set amplitude to zero for a few ms to let things de-energize
-    setRegisterValue(HW.REG_POS_PULSE_AMP, 0)
-    setRegisterValue(HW.REG_NEG_PULSE_AMP, 0)
+    #setRegisterValue(HW.REG_POS_PULSE_AMP_INNER, 0)
+    #setRegisterValue(HW.REG_POS_PULSE_AMP_OUTER, 0)
+    #setRegisterValue(HW.REG_NEG_PULSE_AMP_INNER, 0)
+    #setRegisterValue(HW.REG_NEG_PULSE_AMP_OUTER, 0)
     time.sleep(.05)
     setRegisterValue(HW.REG_COMMAND, HW.STOP_PULSING)
     time.sleep(.05)
@@ -102,6 +129,48 @@ def verifyRegisterWrite(regNum, sentValue):
     return isGood
 
 
+def getErrorText(errorFlagByte):
+    # Converts the error flag byte, which is an unsigned integer, to error text. This method documents the meanings, which must match those in the
+    # MCU code.
+    # INPUT
+    # errorFlagByte is a single 16-bit unsigned integer with each bit representing an error flag
+    # OUTPUT
+    # errorTextList is a list of strings with error messages for each error bit that is set in the errorFlagByte input
+
+    errorTextList = []
+    for whichBit in range(0, 16):
+        flagMask = 1 << whichBit
+        if flagMask & errorFlagByte > 0:
+            # bit is 1, retrieve associated error text. The definitions are stored in this segment of code, and must match those in the MCU code
+            if whichBit == 0:
+                errorTextList.append('V1+ coil pulse not detected')
+            elif whichBit == 1:
+                errorTextList.append('V1- coil pulse not detected')
+            elif whichBit == 2:
+                errorTextList.append('V2+ coil pulse not detected')
+            elif whichBit == 3:
+                errorTextList.append('V2- coil pulse not detected')
+
+    return errorTextList
+
+
+def checkForFaults():
+    # Checks GPIO input for indication of fault on signal. Returns True if fault detected, False otherwise
+    faultInput = GPIO.input("P8_10")
+    if faultInput > 0:
+        faultDetected = True
+    else:
+        faultDetected = False
+    return faultDetected
+
+
+def getErrorMessages():
+    # Retrieves fault flag byte from MCU and returns a list of error messages.
+    faultFlagByte = readRegisterValue(HW.REG_ERROR_FLAGS)
+    print('faultFlagByte: ')
+    print(faultFlagByte)
+    errorMessageList = getErrorText(faultFlagByte)
+    return errorMessageList
 
 
 
