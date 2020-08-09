@@ -43,7 +43,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.__pulseParams = {'EFieldAmpPos': 0.5, 'EFieldAmpNeg': 0.5, 'PulseSpacing': 20, 'EFieldLobeDurationPos': 10, 'EFieldLobeDurationNeg': 10, 'dcBias': 1027}
         self._nonPulseParameters = {'IntervalOnTime': .3, 'IntervalOffTime': .2, 'MainTimer': 14, 'useTimerCB': True, 'useIntervalTimerCB': False, 'zeroAdjust': 1031}
         self._globalPulsingState = OFF  # either ON or OFF, depending on whether we are in pulsing mode. Note that we may be in an 'off' pulsing interval state,
-                                        # but be in an ON global pulsing state
+                                        # but be in an ON global pulsing state. Being paused is also considered ON for the globalPulsingState
 
         # initialization
         pxmp = QtGui.QPixmap('OLogo.jpg')
@@ -80,6 +80,10 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self._intervalTimerInitVal = 0                      # initial value of timer (not current value)
         self._intervalTimerExpired = False
 
+        # Pulsing pause state
+        self._pulsingPaused = False
+        self.pB_Pause.setEnabled(False)
+
         # SIGNALS for callback functions
         self.txEd_EFieldAmpPos.editingFinished.connect(self.EFieldAmpPosTextEdited)
         self.txEd_EFieldAmpNeg.editingFinished.connect(self.EFieldAmpNegTextEdited)
@@ -89,6 +93,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.txEd_timerMin.editingFinished.connect(self.timerValTextEdited)
         self.pB_StartPulsing.clicked.connect(self.startPulsing)
         self.pB_StopPulsing.clicked.connect(self.stopPulsing)
+        self.pB_Pause.clicked.connect(self.pausePulsing)
         self.pB_Verify.clicked.connect(self.verifyPulseParams)
         self.pB_ResetTimer.clicked.connect(self.resetTimer)
         self.pB_advancedConfig.clicked.connect(self.advancedConfigPB)
@@ -182,8 +187,30 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
                 self.showMessageBox('Error Transmitting Pulse Parameters over i2c bus', 'ERROR')
             BBB.startPulsing()
             self.DisableControls()
+            self.pB_Pause.setEnabled(True)
             self._faultCheckTimer.start(2000)       # check every two seconds
             self.__mv_gif.start()
+
+    def pausePulsing(self):
+        # Pause or unpause pulsing
+        if not self._pulsingPaused:
+            self._intervalTimer.stop()
+            self.__timer.stop()
+            self._faultCheckTimer.stop()
+            self.__mv_gif.stop()
+            BBB.stopPulsing()
+            self._pulsingPaused = True
+            self.pB_Pause.setText('Continue Pulsing')
+        else:
+            self.__timer.start()
+            self.__mv_gif.start()
+            if self._intervalTimerUsed:
+                self._intervalTimer.start()
+
+            BBB.startPulsing()
+            self._pulsingPaused = False
+            self.pB_Pause.setText('Pause Pulsing')
+            self._faultCheckTimer.start(2000)
 
     def startIntervalTimer(self, whichState):
         if self._globalPulsingState == ON:
@@ -224,6 +251,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.__mv_gif.jumpToFrame(1)
         self.pB_Verify.setFocus()
         self.EnableControls()
+        self.pB_Pause.setEnabled(False)
+        self.pB_Pause.setText('Pause Pulsing')
         self.stopIntervalTimer()
         self._faultCheckTimer.stop()
         if self.__timerUsed and self.__timerExpired:
@@ -537,6 +566,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.cB_useIntervalMode.setChecked(dictObj['useIntervalTimerCB'])
         self.cB_UseTimer.setChecked(dictObj['useTimerCB'])
         self.txEd_zeroAdjust.setText(str(dictObj['zeroAdjust']))
+        self.zeroAdjustTextEdited()  # zero adjust must be sent immediately, as it is not sent with each start pulse command
 
     def showMessage(self):
         self.showMessageBox('Got Here!')

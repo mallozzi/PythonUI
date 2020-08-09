@@ -419,7 +419,7 @@
      <rect>
       <x>450</x>
       <y>370</y>
-      <width>311</width>
+      <width>511</width>
       <height>111</height>
      </rect>
     </property>
@@ -544,6 +544,28 @@
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pB_Pause">
+     <property name="geometry">
+      <rect>
+       <x>320</x>
+       <y>40</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Yu Gothic UI</family>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color: qlineargradient(spread:pad, x1:0.988455, y1:0.693, x2:1, y2:0, stop:0 rgba(231, 175, 42, 255), stop:1 rgba(234, 234, 234, 255));</string>
+     </property>
+     <property name="text">
+      <string>Pause Pulsing</string>
      </property>
     </widget>
    </widget>
@@ -867,7 +889,7 @@ color:white</string>
      <rect>
       <x>450</x>
       <y>180</y>
-      <width>311</width>
+      <width>511</width>
       <height>171</height>
      </rect>
     </property>

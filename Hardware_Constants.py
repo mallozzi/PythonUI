@@ -3,14 +3,14 @@
 # Current version is for dsPic33CH512MP508
 
 
-DUTY_CYCLE_SLOPE_INNER = 7.086          # Change in PWM duty cycle integer in MCU for each V/m change in E Field
-DUTY_CYCLE_SLOPE_OUTER = 19.67         # Change in PWM duty cycle integer in MCU for each V/m change in E Field
+DUTY_CYCLE_SLOPE_INNER = 4.387          # Change in PWM duty cycle integer in MCU for each V/m change in E Field
+DUTY_CYCLE_SLOPE_OUTER = 14.75          # Change in PWM duty cycle integer in MCU for each V/m change in E Field
 
 
 PULSE_SPACING_MAX = 250         # maximum pulse spacing allowable in ms. This is the time from the end of one pulse to the beginning of the next. A setting of 250
-                                #   assumes a 128 MHz clock frequency (64 MHz instruction cycle), with a Timer1 prescale divider of 256, for a 16-bit timer.
+                                # assumes a 128 MHz clock frequency (64 MHz instruction cycle), with a Timer1 prescale divider of 256, for a 16-bit timer.
 PULSE_SPACING_MIN = 2           # minimum pulse spacing allowable in ms.
-EFIELD_MAX_POTENTIAL = 40        # nominal value of electric field at 100% pwm duty cycle
+EFIELD_MAX_POTENTIAL = 40       # nominal value of electric field at 100% pwm duty cycle
 PULSE_DURATION_MAX = 250        # maximum duration of either positive or negative lobe
 PULSE_DURATION_MIN = 1          # minimum duration of either positive or negative lobe
 
